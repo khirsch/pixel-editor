@@ -635,18 +635,50 @@ export function PixelEditor() {
 
     tempCtx.putImageData(imageDataRef.current, 0, 0);
 
+    const dataUrl = tempCanvas.toDataURL("image/png");
+    const [metadata, base64Data] = dataUrl.split(",");
+    const binaryData = atob(base64Data);
+    const bytes = new Uint8Array(binaryData.length);
+    for (let index = 0; index < binaryData.length; index++) {
+      bytes[index] = binaryData.charCodeAt(index);
+    }
+
+    const blob = new Blob([bytes], {
+      type: metadata.match(/data:(.*?);base64/)?.[1] ?? "image/png",
+    });
+    const file = new File([blob], "pixel-art-cleaned.png", {
+      type: blob.type,
+    });
+
+    if (
+      window.matchMedia("(pointer: coarse)").matches &&
+      typeof navigator.share === "function" &&
+      typeof navigator.canShare === "function" &&
+      navigator.canShare({ files: [file] })
+    ) {
+      void navigator
+        .share({ files: [file], title: "Pixel art" })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError")
+            return;
+
+          downloadBlob(blob);
+        });
+      return;
+    }
+
+    downloadBlob(blob);
+  };
+
+  const downloadBlob = (blob: Blob) => {
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.download = "pixel-art-cleaned.png";
-    link.href = tempCanvas.toDataURL("image/png");
-
-    // For better mobile compatibility, append to DOM before clicking
+    link.href = url;
     document.body.appendChild(link);
     link.click();
-
-    // Clean up
-    setTimeout(() => {
-      document.body.removeChild(link);
-    }, 100);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
